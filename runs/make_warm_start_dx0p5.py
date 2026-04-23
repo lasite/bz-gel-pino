@@ -13,7 +13,14 @@ can load it via --start-state.
 Usage (produces the Δ=0.5 f=0.9 warm-start used for the 4.8-rotation clean
 spiral dataset in dataset/spiral_deform/Train_361_*):
 
-    python runs/make_warm_start_dx0p5.py --settle-t 40 --f 0.9 --dt 0.002
+    python runs/make_warm_start_dx0p5.py \\
+        --rigid-dx 1.0 --dx 0.5 --settle-t 40 --f 0.9 --dt 0.001
+
+The --rigid-dx 1.0 runs the rigid-phase spiral organisation at Δ=1 (where
+the 1/Δ² flux coefficient is 4× gentler than at Δ=0.5 and single-step RK4
+stays comfortably stable), then regrids node positions down to Δ=0.5 at
+save time. Reaction terms are Δ-independent and u, v are element-centred,
+so nothing about the chemistry changes — only the mesh spacing rescales.
 """
 from __future__ import annotations
 import argparse
@@ -68,14 +75,32 @@ def build_spiral_ic(Ny: int, Nx: int, u_high: float, v_high: float,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-grid", type=int, default=101)
-    ap.add_argument("--dx", type=float, default=0.5)
+    ap.add_argument("--dx", type=float, default=0.5,
+                    help="target undeformed element edge Δ for the warm-start "
+                         "node positions (i.e. the Δ that the downstream "
+                         "deformable run will use).")
+    ap.add_argument("--rigid-dx", type=float, default=None, dest="rigid_dx",
+                    help="if set, run the rigid phase at this Δ and only "
+                         "regrid node positions to --dx at the end. Use "
+                         "--rigid-dx 1.0 when --dx 0.5 with f≥0.9 pushes the "
+                         "rigid step past the explicit-RK4 stability edge "
+                         "and hits the u,v∈[0,1.5] clamp. Reaction terms F,G "
+                         "are Δ-independent, and rigid-mode diffusion only "
+                         "sees Δ through the flux coefficient ∝ 1/Δ², so a "
+                         "warm-start organised at Δ=1 and then regridded to "
+                         "Δ=0.5 gives identical physics minus the numerical "
+                         "blow-up.")
     ap.add_argument("--settle-t", type=float, default=50.0,
                     help="T₀ of rigid-mesh integration to let spiral organise")
-    ap.add_argument("--dt", type=float, default=0.002,
-                    help="outer dt in T₀ for the rigid phase. dt=0.005 "
-                         "occasionally hits the u,v∈[0,1.5] clamp at Δ=0.5 "
-                         "because the RK4 reaction step misses the BZ front's "
-                         "stiff transients; 0.002 is a safer default.")
+    ap.add_argument("--dt", type=float, default=0.001,
+                    help="outer dt in T₀ for the rigid phase. With the "
+                         "Fortran-strict single-step RK4 reaction integrator "
+                         "and f=0.9 (more excitable than the paper default "
+                         "0.7), dt≥0.002 drops below the stability margin at "
+                         "sharp BZ wavefronts and pins v at the 1.5 clamp. "
+                         "dt=0.001 leaves a clean state (u≤0.33, v≤0.22 at "
+                         "t=40 T₀); 0.002 was fine for f=0.7 but NOT for "
+                         "f=0.9, so the default drops to 0.001.")
     ap.add_argument("--u-high", type=float, default=0.55,
                     help="initial activator amplitude. The paper's stationary "
                          "u* at φ=0.1045 is 0.24, and F(u,v,φ)≈(u(1-u) - f·v·(u-q)/(u+q))/ε "
@@ -98,21 +123,25 @@ def main():
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    overrides = {"dx": args.dx}
+    rigid_dx = args.rigid_dx if args.rigid_dx is not None else args.dx
+
+    overrides = {"dx": rigid_dx}
     if args.f_override is not None:       overrides["f"] = args.f_override
     if args.epsilon_override is not None: overrides["epsilon"] = args.epsilon_override
     p = replace(DEFAULT, **overrides)
     Ny = Nx = args.n_grid
 
     u0, v0 = build_spiral_ic(Ny, Nx, u_high=args.u_high, v_high=args.v_high)
-    spacing = LAMBDA_IN * p.dx
+    spacing_rigid = LAMBDA_IN * rigid_dx
     ks, ls = np.meshgrid(np.arange(Ny + 1), np.arange(Nx + 1), indexing="ij")
-    nodes = np.stack([ls * spacing, ks * spacing], axis=-1).astype(np.float64)
+    nodes = np.stack([ls * spacing_rigid, ks * spacing_rigid],
+                     axis=-1).astype(np.float64)
     st = sim.State(nodes=nodes, u=u0.copy(), v=v0.copy())
 
     n_steps = int(round(args.settle_t / args.dt))
-    print(f"Rigid-phase: Δ={p.dx}  dt={args.dt}  n_steps={n_steps}  "
-          f"total={args.settle_t} T₀  grid {Ny}×{Nx}")
+    print(f"Rigid-phase: Δ={rigid_dx}  dt={args.dt}  n_steps={n_steps}  "
+          f"total={args.settle_t} T₀  grid {Ny}×{Nx}  "
+          f"(target output Δ={args.dx})")
     t0 = time.time()
     snaps = sim.run(st, p, dt=args.dt, n_steps=n_steps,
                     snapshot_every=max(1, n_steps // 20),
@@ -123,8 +152,20 @@ def main():
           f"u∈[{snaps['u'].min():.3f},{snaps['u'].max():.3f}]  "
           f"v∈[{snaps['v'].min():.3f},{snaps['v'].max():.3f}]")
 
+    # Regrid node positions from rigid_dx → args.dx. u, v are element-centred
+    # and Δ-independent, so they transplant unchanged; only node coordinates
+    # rescale to the target spacing λ_init·args.dx.
+    if rigid_dx != args.dx:
+        spacing_out = LAMBDA_IN * args.dx
+        nodes_out = np.stack([ls * spacing_out, ks * spacing_out],
+                             axis=-1).astype(np.float64)
+        print(f"  regridded node spacing {spacing_rigid:.4f} → "
+              f"{spacing_out:.4f} for output Δ={args.dx}")
+    else:
+        nodes_out = snaps["nodes"][-1].copy()
+
     # Final state → warm start
-    final = sim.State(nodes=snaps["nodes"][-1].copy(),
+    final = sim.State(nodes=nodes_out,
                       u=snaps["u"][-1].copy(),
                       v=snaps["v"][-1].copy(),
                       t=float(snaps["t"][-1]))
