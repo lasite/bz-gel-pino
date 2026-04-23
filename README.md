@@ -91,8 +91,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # 2) CardiacEP-PINOS  — vendored dependency, provides AP_neuralop_utils.
-#    Clone it anywhere and point an env var at the checkout:
-git clone <your-CardiacEP-PINOS-url> /path/to/CardiacEP-PINOS
+#    Clone anywhere and point AP_UTILS_ROOT at the checkout.
+git clone https://github.com/janet-9/CardiacEP-PINOS.git /path/to/CardiacEP-PINOS
 export AP_UTILS_ROOT=/path/to/CardiacEP-PINOS
 # (If AP_UTILS_ROOT is unset, runs/PINO_Train.py and viz/make_error_gif.py
 #  fall back to the author's hard-coded path, which only exists on one
