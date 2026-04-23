@@ -14,10 +14,16 @@ Optional Arguments:
 """
 
 #Import required modules for constructing and training the model.
-# --- path hack: AP_neuralop_utils is vendored from CardiacEP-PINOS, not on PyPI ---
+# --- path hack: AP_neuralop_utils lives in CardiacEP-PINOS (not on PyPI) ---
+# Set AP_UTILS_ROOT=/path/to/CardiacEP-PINOS on a new machine; the hard-coded
+# author path below is only used when that env var is unset.
+import os as _os
 import sys as _sys
 from pathlib import Path as _Path
-_AP_UTILS_ROOT = _Path("/media/b418/Wangyj/PINN/cardiac_pino/CardiacEP-PINOS")
+_AP_UTILS_ROOT = _Path(_os.environ.get(
+    "AP_UTILS_ROOT",
+    "/media/b418/Wangyj/PINN/cardiac_pino/CardiacEP-PINOS",
+))
 if str(_AP_UTILS_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_AP_UTILS_ROOT))
 # --- end path hack ---

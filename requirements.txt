@@ -1,0 +1,23 @@
+# Core numerics / torch
+torch==2.5.1
+numpy>=1.26,<3
+scipy>=1.10
+
+# Plotting / IO
+matplotlib>=3.8
+Pillow>=10.0
+h5py>=3.10
+
+# Neural operator (FNO / PINO)
+neuraloperator>=1.0,<2
+tensorly>=0.9
+tensorly-torch>=0.5
+
+# --- EXTERNAL DEPENDENCY ---
+# runs/PINO_Train.py and viz/make_error_gif.py also need the CardiacEP-PINOS
+# package (provides AP_neuralop_utils). That project is not on PyPI. Clone it
+# separately (e.g. from https://github.com/<upstream>/CardiacEP-PINOS) and
+# point the environment variable AP_UTILS_ROOT at its checkout, e.g.:
+#     export AP_UTILS_ROOT=/path/to/CardiacEP-PINOS
+# If that env var is unset, the scripts fall back to the hard-coded author
+# path (/media/b418/Wangyj/PINN/cardiac_pino/CardiacEP-PINOS).

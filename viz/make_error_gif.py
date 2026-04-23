@@ -10,11 +10,16 @@ Follows the same windowed-evaluation + overlap-averaging scheme as
 cardiac_pino/.../Evaluation_P2P.py (reconstruct_rollout).
 """
 
+import os
 import sys
 from pathlib import Path
 
-# vendored utils from cardiac_pino
-_AP_UTILS_ROOT = Path("/media/b418/Wangyj/PINN/cardiac_pino/CardiacEP-PINOS")
+# vendored utils from cardiac_pino. Override with AP_UTILS_ROOT env var on
+# machines where the checkout lives somewhere else.
+_AP_UTILS_ROOT = Path(os.environ.get(
+    "AP_UTILS_ROOT",
+    "/media/b418/Wangyj/PINN/cardiac_pino/CardiacEP-PINOS",
+))
 if str(_AP_UTILS_ROOT) not in sys.path:
     sys.path.insert(0, str(_AP_UTILS_ROOT))
 
