@@ -1,0 +1,36 @@
+# --- generated data / outputs ----------------------------------------
+dataset/
+results/
+start_states/
+plots/
+
+# --- training / simulation artifacts ---------------------------------
+*.pt
+*.npz
+*.pkl
+*.gif
+*.npy
+*.png
+*.jpg
+*.jpeg
+*.svg
+
+# --- Python ---------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- scratch / logs -------------------------------------------------
+*.log
+/tmp_*
+tmp/
+.ipynb_checkpoints/
+
+# --- IDE / OS -------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
