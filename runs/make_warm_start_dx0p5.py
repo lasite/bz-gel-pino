@@ -7,11 +7,13 @@ before the spiral can organise. Fix: run rigid-mesh first so the chemistry
 develops a clean spiral at Δ=0.5, then hand off to the deformable solver
 from that settled state.
 
-Writes start_states/spiral_dx0p5_t{t:.1f}T0.npz so generate_datasets.py can
-load it via --start-state.
+Writes start_states/spiral_f{f}_dx{dx}_t{t}T0.npz so generate_datasets.py
+can load it via --start-state.
 
-Usage:
-    python runs/make_warm_start_dx0p5.py --settle-t 50 --dt 0.005
+Usage (produces the Δ=0.5 f=0.9 warm-start used for the 4.8-rotation clean
+spiral dataset in dataset/spiral_deform/Train_361_*):
+
+    python runs/make_warm_start_dx0p5.py --settle-t 40 --f 0.9 --dt 0.002
 """
 from __future__ import annotations
 import argparse
@@ -84,10 +86,22 @@ def main():
                          "the seed clearly above u* but safely below the "
                          "shock regime.")
     ap.add_argument("--v-high", type=float, default=0.3)
+    ap.add_argument("--f", type=float, default=None, dest="f_override",
+                    help="override Oregonator stoichiometric factor. "
+                         "Default (None) keeps Parameters.f=0.7. The clean "
+                         "4.8-rotation Δ=0.5 dataset was produced with "
+                         "--f 0.9, because 0.9 is more excitable than 0.7 "
+                         "and yields a spiral tip that survives the "
+                         "mechanics-induced volume oscillations.")
+    ap.add_argument("--epsilon", type=float, default=None, dest="epsilon_override",
+                    help="override ε (default 0.354 from Table I).")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    p = replace(DEFAULT, dx=args.dx)
+    overrides = {"dx": args.dx}
+    if args.f_override is not None:       overrides["f"] = args.f_override
+    if args.epsilon_override is not None: overrides["epsilon"] = args.epsilon_override
+    p = replace(DEFAULT, **overrides)
     Ny = Nx = args.n_grid
 
     u0, v0 = build_spiral_ic(Ny, Nx, u_high=args.u_high, v_high=args.v_high)
@@ -115,8 +129,12 @@ def main():
                       v=snaps["v"][-1].copy(),
                       t=float(snaps["t"][-1]))
     if args.out is None:
-        tag = (f"spiral_dx{str(args.dx).replace('.', 'p')}"
-               f"_t{args.settle_t:.1f}T0.npz")
+        dx_tag = str(args.dx).replace('.', 'p')
+        f_tag = (f"_f{str(p.f).replace('.', 'p')}"
+                 if args.f_override is not None else "")
+        eps_tag = (f"_ep{str(p.epsilon).replace('.', 'p')}"
+                   if args.epsilon_override is not None else "")
+        tag = f"spiral{f_tag}{eps_tag}_dx{dx_tag}_t{args.settle_t:.1f}T0.npz"
         out = ROOT / "start_states" / tag
     else:
         out = args.out
